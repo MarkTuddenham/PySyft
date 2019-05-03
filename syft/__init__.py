@@ -1,4 +1,7 @@
 """Some syft imports..."""
+
+from typing import Optional
+
 # Major imports
 from syft import frameworks
 from syft import workers
@@ -21,6 +24,7 @@ from syft.federated import method2plan
 from syft.federated import make_plan
 
 # Import Worker Types
+from syft.workers import BaseWorker
 from syft.workers import VirtualWorker
 
 # Import Tensor Types
@@ -33,7 +37,9 @@ from syft.frameworks.torch.tensors.interpreters import PointerTensor
 from syft import serde
 
 # import other useful classes
-from syft.frameworks.torch.federated import FederatedDataset, FederatedDataLoader, BaseDataset
+from syft.frameworks.torch.federated import FederatedDataset
+from syft.frameworks.torch.federated import FederatedDataLoader
+from syft.frameworks.torch.federated import BaseDataset
 
 # import functions
 from syft.frameworks.torch.functions import combine_pointers
@@ -51,7 +57,7 @@ __all__ = [
     "VirtualGrid",
 ]
 
-local_worker = None
+local_worker: Optional[BaseWorker] = None
 torch = None
 
 if "ID_PROVIDER" not in globals():
@@ -173,7 +179,7 @@ def create_sandbox(gbs, verbose=True, download_data=True):
             print("\t\t- Breast Cancer Dataset")
         breast_cancer = load_sklearn(load_breast_cancer)
         if verbose:
-            print("\t- Digits Dataset")
+            print("\t\t- Digits Dataset")
         digits = load_sklearn(load_digits)
         if verbose:
             print("\t\t- Iris Dataset")

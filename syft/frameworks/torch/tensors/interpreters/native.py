@@ -3,8 +3,10 @@ import torch
 
 import syft
 import syft as sy
+
 from syft.frameworks.torch.tensors.interpreters import AbstractTensor
 from syft.frameworks.torch.tensors.interpreters import PointerTensor
+
 from syft.workers import BaseWorker
 
 from syft.exceptions import PureTorchTensorFoundError
@@ -158,7 +160,7 @@ class TorchTensor(AbstractTensor):
     def handle_func_command(cls, command):
         """
         Operates as a router for functions. A function call always starts
-        by being handled here and 3 scenarii must be considered:
+        by being handled here and 3 scenarios must be considered:
 
         Real Torch tensor:
             The arguments of the function are real tensors so we should
@@ -189,7 +191,8 @@ class TorchTensor(AbstractTensor):
         try:  # will work if tensors are wrappers
             # Replace all torch tensor with their child attribute
             # Note that we return also args_type which helps handling case 3 in the docstring
-            new_args, new_kwargs, new_type, args_type = syft.frameworks.torch.hook_args.hook_function_args(
+            # TODO: This is a bad way of avoiding circular dependencies
+            new_args, new_kwargs, new_type, args_type = syft.frameworks.torch.hooking.hook_args.hook_function_args(
                 cmd, args, kwargs, return_args_type=True
             )
             # This handles case 3: it redirects the command to the appropriate class depending
@@ -202,7 +205,7 @@ class TorchTensor(AbstractTensor):
             # Send it to the appropriate class and get the response
             response = new_type.handle_func_command(new_command)
             # Put back the wrappers where needed
-            response = syft.frameworks.torch.hook_args.hook_response(
+            response = syft.frameworks.torch.hooking.hook_args.hook_response(
                 cmd, response, wrap_type=args_type
             )
         except PureTorchTensorFoundError:  # means that it's not a wrapper but a pure tensor

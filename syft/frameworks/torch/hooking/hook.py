@@ -22,12 +22,13 @@ from syft.frameworks.torch.tensors.interpreters import TorchTensor
 from syft.frameworks.torch.tensors.interpreters import PointerTensor
 from syft.frameworks.torch.tensors.decorators import LoggingTensor
 from syft.frameworks.torch.tensors.interpreters import FixedPrecisionTensor
-from syft.frameworks.torch.tensors.interpreters import AdditiveSharingTensor
-from syft.frameworks.torch.tensors.interpreters import MultiPointerTensor
 from syft.frameworks.torch.tensors.interpreters.abstract import initialize_tensor, _apply_args
 
-from syft.frameworks.torch.hook.torch_attributes import TorchAttributes
-from syft.frameworks.torch.hook.multipointer import hook_multi_pointer_tensor_methods
+from syft.frameworks.torch.hooking.torch_attributes import TorchAttributes
+
+from syft.frameworks.torch.hooking.multipointer import hook_multi_pointer_tensor_methods
+
+from syft.frameworks.torch.hooking.additive_shared import hook_additive_shared_tensor_methods
 
 
 class TorchHook:
@@ -86,7 +87,7 @@ class TorchHook:
         is_client: bool = True,
         verbose: bool = True,
     ) -> None:
-        """Initializes the hook.
+        """Initialize the hook.
 
         Initialize the hook and define all the attributes pertaining to the
         torch hook in a special TorchAttribute class, that will be added in the
@@ -134,7 +135,7 @@ class TorchHook:
         # Add all hooked tensor methods to AdditiveSharingTensor tensor but change behaviour
         # to all shares (when it makes sense, otherwise the method is overwritten in the
         # AdditiveSharingTensor class)
-        self._hook_additive_shared_tensor_methods()
+        hook_additive_shared_tensor_methods(self)
 
         # Add all hooked tensor methods to multi_pointer to change behaviour to have the cmd
         # sent to all child pointers.
@@ -257,20 +258,6 @@ class TorchHook:
             if attr not in dir(PointerTensor) or attr in boolean_comparators:
                 new_method = self.get_hooked_pointer_method(attr)
                 setattr(PointerTensor, attr, new_method)
-
-    def _hook_additive_shared_tensor_methods(self):
-        """
-        Add hooked version of all methods of the torch Tensor to the
-        Additive Shared tensor: instead of performing the native tensor
-        method, it will be forwarded to each share when it is relevant
-        """
-
-        tensor_type = self.torch.Tensor
-        # Use a pre-defined list to select the methods to overload
-        for attr in self.to_auto_overload[tensor_type]:
-            if attr not in dir(AdditiveSharingTensor):
-                new_method = self.get_hooked_additive_shared_method(attr)
-                setattr(AdditiveSharingTensor, attr, new_method)
 
     def _hook_parameters(self):
         """
@@ -484,46 +471,6 @@ class TorchHook:
             return response
 
         return overloaded_pointer_method
-
-    def get_hooked_additive_shared_method(hook_self, attr):
-        """
-        Hook a method to send it multiple recmote workers
-
-        Args:
-            attr (str): the method to hook
-        Return:
-            the hooked method
-        """
-
-        def dispatch(args, k):
-            return map(lambda x: x[k] if isinstance(x, dict) else x, args)
-
-        @wraps(attr)
-        def overloaded_attr(self, *args, **kwargs):
-            """
-            Operate the hooking
-            """
-
-            # Replace all syft tensor with their child attribute
-            new_self, new_args, new_kwargs = syft.frameworks.torch.hook_args.hook_method_args(
-                attr, self, args, kwargs
-            )
-
-            results = {}
-            for k, v in new_self.items():
-                results[k] = v.__getattribute__(attr)(*dispatch(new_args, k), **new_kwargs)
-
-            # Put back AdditiveSharingTensor on the tensors found in the response
-            response = syft.frameworks.torch.hook_args.hook_response(
-                attr,
-                results,
-                wrap_type=AdditiveSharingTensor,
-                wrap_args=self.get_class_attributes(),
-            )
-
-            return response
-
-        return overloaded_attr
 
     def get_hooked_syft_method(hook_self, attr):
         """

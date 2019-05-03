@@ -1,9 +1,12 @@
 """Hook MultiPointer Tensor."""
 from functools import wraps
 
+from typing import Callable, Any
+
 from syft.frameworks.torch.tensors.interpreters import MultiPointerTensor
-from syft.frameworks.torch.hook.hook_args import hook_method_args
-from syft.frameworks.torch.hook.hook_args import hook_response
+
+from .hook_args import hook_method_args
+from .hook_args import hook_response
 
 
 def hook_multi_pointer_tensor_methods(hook):
@@ -18,11 +21,11 @@ def hook_multi_pointer_tensor_methods(hook):
     # Use a pre-defined list to select the methods to overload
     for attr in hook.to_auto_overload[tensor_type]:
         if attr not in dir(MultiPointerTensor):
-            new_method = hook.get_hooked_multi_pointer_method(attr)
+            new_method = get_hooked_multi_pointer_method(attr)
             setattr(MultiPointerTensor, attr, new_method)
 
 
-def get_hooked_multi_pointer_method(attr: str):
+def get_hooked_multi_pointer_method(attr: Callable[..., Any]):
     """Update method to send itself to multiple remote workers.
 
     Args:
