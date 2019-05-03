@@ -4,25 +4,30 @@ import logging
 import types
 import copy
 import torch
-import torch.nn as nn
+
+# import torch.nn as nn
 from functools import wraps
 
 
 import syft
+
 from syft import workers
 
 from syft.workers import BaseWorker
-from .tensors.interpreters import TorchTensor
-from .tensors.interpreters import PointerTensor
-from .tensors.decorators import LoggingTensor
-from .tensors.interpreters import FixedPrecisionTensor
-from .tensors.interpreters import AdditiveSharingTensor
-from .tensors.interpreters import MultiPointerTensor
-from .torch_attributes import TorchAttributes
-from .tensors.interpreters.abstract import initialize_tensor, _apply_args
 
 from syft.exceptions import route_method_exception
 from syft.exceptions import TensorsNotCollocatedException
+
+from syft.frameworks.torch.tensors.interpreters import TorchTensor
+from syft.frameworks.torch.tensors.interpreters import PointerTensor
+from syft.frameworks.torch.tensors.decorators import LoggingTensor
+from syft.frameworks.torch.tensors.interpreters import FixedPrecisionTensor
+from syft.frameworks.torch.tensors.interpreters import AdditiveSharingTensor
+from syft.frameworks.torch.tensors.interpreters import MultiPointerTensor
+from syft.frameworks.torch.tensors.interpreters.abstract import initialize_tensor, _apply_args
+
+from syft.frameworks.torch.hook.torch_attributes import TorchAttributes
+from syft.frameworks.torch.hook.multipointer import hook_multi_pointer_tensor_methods
 
 
 class TorchHook:
@@ -75,12 +80,16 @@ class TorchHook:
     """
 
     def __init__(
-        self, torch, local_worker: BaseWorker = None, is_client: bool = True, verbose: bool = True
-    ):
+        self,
+        torch=torch,
+        local_worker: BaseWorker = None,
+        is_client: bool = True,
+        verbose: bool = True,
+    ) -> None:
         """Initializes the hook.
 
         Initialize the hook and define all the attributes pertaining to the
-        torch hook in a special TorchAttibute class, that will be added in the
+        torch hook in a special TorchAttribute class, that will be added in the
         syft.torch attributes. Hence, this parameters are now conveyed by the
         syft module.
         """
@@ -127,9 +136,9 @@ class TorchHook:
         # AdditiveSharingTensor class)
         self._hook_additive_shared_tensor_methods()
 
-        # Add all hooked tensor methods to multi_pointer to change behavior to have the cmd
+        # Add all hooked tensor methods to multi_pointer to change behaviour to have the cmd
         # sent to all child pointers.
-        self._hook_multi_pointer_tensor_methods()
+        hook_multi_pointer_tensor_methods(self)
 
         # Add all hooked tensor methods to Logging tensor but change behaviour to just forward
         # the cmd to the next child (behaviour can be changed in the SyftTensor class file)
@@ -262,21 +271,6 @@ class TorchHook:
             if attr not in dir(AdditiveSharingTensor):
                 new_method = self.get_hooked_additive_shared_method(attr)
                 setattr(AdditiveSharingTensor, attr, new_method)
-
-    def _hook_multi_pointer_tensor_methods(self):
-        """
-        Add hooked version of all methods of the torch Tensor to the
-        Multi Pointer tensor: instead of performing the native tensor
-        method, it will be sent remotely for each pointer to the
-        location it is pointing at.
-        """
-
-        tensor_type = self.torch.Tensor
-        # Use a pre-defined list to select the methods to overload
-        for attr in self.to_auto_overload[tensor_type]:
-            if attr not in dir(MultiPointerTensor):
-                new_method = self.get_hooked_multi_pointer_method(attr)
-                setattr(MultiPointerTensor, attr, new_method)
 
     def _hook_parameters(self):
         """
@@ -525,43 +519,6 @@ class TorchHook:
                 results,
                 wrap_type=AdditiveSharingTensor,
                 wrap_args=self.get_class_attributes(),
-            )
-
-            return response
-
-        return overloaded_attr
-
-    def get_hooked_multi_pointer_method(hook_self, attr):
-        """
-        Hook a method to send it multiple recmote workers
-
-        Args:
-            attr (str): the method to hook
-        Return:
-            the hooked method
-        """
-
-        def dispatch(args, k):
-            return map(lambda x: x[k] if isinstance(x, dict) else x, args)
-
-        @wraps(attr)
-        def overloaded_attr(self, *args, **kwargs):
-            """
-            Operate the hooking
-            """
-
-            # Replace all syft tensor with their child attribute
-            new_self, new_args, new_kwargs = syft.frameworks.torch.hook_args.hook_method_args(
-                attr, self, args, kwargs
-            )
-
-            results = {}
-            for k, v in new_self.items():
-                results[k] = v.__getattribute__(attr)(*dispatch(new_args, k), **new_kwargs)
-
-            # Put back MultiPointerTensor on the tensors found in the response
-            response = syft.frameworks.torch.hook_args.hook_response(
-                attr, results, wrap_type=MultiPointerTensor, wrap_args=self.get_class_attributes()
             )
 
             return response
