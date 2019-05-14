@@ -59,6 +59,7 @@ __all__ = [
 
 local_worker: Optional[BaseWorker] = None
 torch = None
+hook = None
 
 if "ID_PROVIDER" not in globals():
     from syft.generic import IdProvider
@@ -67,16 +68,18 @@ if "ID_PROVIDER" not in globals():
 
 
 def create_sandbox(gbs, verbose=True, download_data=True):
-    """There's some boilerplate stuff that most people who are
+    """Fill this environment with some sandbox variables.
+
+    There's some boilerplate stuff that most people who are
     just playing around would like to have. This will create
-    that for you"""
+    that for you.
+    """
 
     try:
         torch = gbs["torch"]
     except:
         torch = gbs["th"]
 
-    global hook
     global bob
     global theo
     global alice
